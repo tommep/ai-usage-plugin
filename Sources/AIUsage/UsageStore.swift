@@ -19,12 +19,25 @@ final class UsageStore: ObservableObject {
     private var signIns: [Provider: SignInAttempt] = [:]
     private var reconnectLoop: Task<Void, Never>?
     private var activeObserver: NSObjectProtocol?
+    private let cacheDefaults: UserDefaults?
+    private var restoredProviders: Set<Provider> = []
+    private static let cacheKey = "lastKnownUsage.v1"
 
     init(defaults: UserDefaults? = nil, preferences: Preferences? = nil, settings: SystemSettings? = nil, fetcher: @escaping (Provider) async throws -> UsageSnapshot = ProviderClient.fetch) {
         self.fetcher = fetcher
+        self.cacheDefaults = defaults
         self.preferences = preferences ?? Preferences(defaults: defaults ?? .standard)
         self.settings = settings ?? SystemSettings(defaults: defaults ?? .standard)
         alertTracker = UsageAlertTracker(defaults: defaults)
+        if let data = defaults?.data(forKey: Self.cacheKey),
+           let cached = try? JSONDecoder().decode([String: UsageSnapshot].self, from: data) {
+            for provider in Provider.allCases {
+                guard let snapshot = cached[provider.rawValue], !snapshot.windows.isEmpty,
+                      snapshot.windows.allSatisfy({ UsageParser.valid($0.used) && $0.minutes > 0 }) else { continue }
+                snapshots[provider] = snapshot
+                restoredProviders.insert(provider)
+            }
+        }
         self.preferences.onChange = { [weak self] in self?.objectWillChange.send(); self?.onChange?() }
         self.settings.onAlertsChanged = { [weak self] in
             guard let self else { return }
@@ -74,6 +87,8 @@ final class UsageStore: ObservableObject {
                 do {
                     let snapshot = try await fetcher(provider)
                     snapshots[provider] = snapshot
+                    restoredProviders.remove(provider)
+                    saveSnapshots()
                     failures.removeValue(forKey: provider)
                     if settings.alertsEnabled {
                         let events = alertTracker.observe(snapshot, provider: provider, now: Date())
@@ -83,7 +98,12 @@ final class UsageStore: ObservableObject {
                     let failure = (error as? UsageFailure) ?? .unavailable
                     failures[provider] = failure
                     // A revoked/changed login invalidates the old account's usage.
-                    if failure == .signIn { snapshots.removeValue(forKey: provider); alertTracker.clear(provider) }
+                    if failure == .signIn {
+                        snapshots.removeValue(forKey: provider)
+                        restoredProviders.remove(provider)
+                        saveSnapshots()
+                        alertTracker.clear(provider)
+                    }
                 }
                 refreshing.remove(provider)
                 if afterSignIn { reconnecting.remove(provider) }
@@ -104,7 +124,12 @@ final class UsageStore: ObservableObject {
 
     func isStale(_ provider: Provider) -> Bool {
         guard let snapshot = snapshots[provider], let window = lastKnownWindow(provider) else { return false }
-        return failures[provider] != nil || !snapshot.isFresh(at: now) || !window.active(at: now)
+        return restoredProviders.contains(provider) || failures[provider] != nil || !snapshot.isFresh(at: now) || !window.active(at: now)
+    }
+
+    private func saveSnapshots() {
+        let cached = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.key.rawValue, $0.value) })
+        if let data = try? JSONEncoder().encode(cached) { cacheDefaults?.set(data, forKey: Self.cacheKey) }
     }
 
     func staleMessage(_ provider: Provider) -> String? {
@@ -155,6 +180,8 @@ final class UsageStore: ObservableObject {
             signIns.removeValue(forKey: provider)
             try? FileManager.default.removeItem(at: attempt.marker)
             snapshots.removeValue(forKey: provider)
+            restoredProviders.remove(provider)
+            saveSnapshots()
             refresh(provider, afterSignIn: true)
         }
     }

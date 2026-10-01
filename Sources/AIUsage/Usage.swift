@@ -5,7 +5,7 @@ enum Provider: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct UsageWindow: Identifiable, Equatable {
+struct UsageWindow: Identifiable, Equatable, Codable {
     let id: String
     let title: String
     let used: Double
@@ -22,7 +22,7 @@ struct UsageWindow: Identifiable, Equatable {
     }
 }
 
-struct UsageSnapshot {
+struct UsageSnapshot: Codable {
     let windows: [UsageWindow]
     let observedAt: Date
     let plan: String?

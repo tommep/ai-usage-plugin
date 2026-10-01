@@ -82,8 +82,8 @@ These are subscription allowances; pay-as-you-go API billing is not supported.
   evidence gets old, or the selected window expires. The panel and menu bar
   tooltip explain the stale reading; throttling also shows a retry countdown.
   Fresh data restores the normal color. Revoked login clears the old account's
-  reading, and unknown usage is shown as a dash. Usage snapshots are kept in
-  memory for the current app session.
+  reading, and unknown usage is shown as a dash. Last successful usage readings
+  are saved locally across restarts and shown as stale until verified again.
 - Reset countdowns use provider-reported dates. The app waits for fresh evidence
   before showing renewed capacity; it never invents a reset or missing window.
 - Alerts start from a quiet baseline and are sent once per threshold per window.

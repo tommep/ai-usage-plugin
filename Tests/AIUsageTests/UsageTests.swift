@@ -150,4 +150,30 @@ final class UsageTests: XCTestCase {
         XCTAssertFalse(store.isStale(.claude))
         XCTAssertNil(store.staleMessage(.claude))
     }
+
+    @MainActor
+    func testRestartRestoresStaleUsageAndRevokedLoginClearsPersistedReading() async throws {
+        let suite = "AIUsageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let fresh = UsageSnapshot(windows: [UsageWindow(id: "weekly", title: "Weekly", used: 2, resetsAt: Date().addingTimeInterval(86400), minutes: 10080)], observedAt: Date(), plan: nil)
+        let original = UsageStore(defaults: defaults, fetcher: { _ in fresh })
+        original.refresh(.claude)
+        for _ in 0..<100 where !original.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertFalse(original.isStale(.claude))
+        var failure = UsageFailure.throttled
+        let restarted = UsageStore(defaults: defaults, fetcher: { _ in throw failure })
+        XCTAssertEqual(restarted.lastKnownWindow(.claude)?.used, 2)
+        XCTAssertTrue(restarted.isStale(.claude))
+        restarted.refresh(.claude)
+        for _ in 0..<100 where !restarted.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertEqual(restarted.lastKnownWindow(.claude)?.used, 2)
+        XCTAssertTrue(restarted.staleMessage(.claude)?.contains("Retrying in 15 min") == true)
+        failure = .signIn
+        let revoked = UsageStore(defaults: defaults, fetcher: { _ in throw failure })
+        revoked.refresh(.claude)
+        for _ in 0..<100 where !revoked.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertNil(revoked.lastKnownWindow(.claude))
+        XCTAssertNil(UsageStore(defaults: defaults).lastKnownWindow(.claude))
+    }
 }
