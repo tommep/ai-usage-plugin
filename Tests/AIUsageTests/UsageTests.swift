@@ -76,18 +76,78 @@ final class UsageTests: XCTestCase {
         store.refresh(.codex)
         while !store.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNil(store.snapshots[.codex])
-        XCTAssertNil(store.featured(.codex))
+        XCTAssertNil(store.lastKnownWindow(.codex))
+        XCTAssertFalse(store.isStale(.codex))
         XCTAssertEqual(store.failures[.codex], .signIn)
     }
 
     @MainActor
-    func testFailedRefreshHidesMenuPercentageAndKeepsLastKnownForPanel() async throws {
+    func testFailedRefreshKeepsStaleLastKnownPercentage() async throws {
         let store = UsageStore(fetcher: { _ in throw UsageFailure.unavailable })
         store.snapshots[.codex] = UsageSnapshot(windows: [UsageWindow(id: "weekly", title: "Weekly", used: 45, resetsAt: Date().addingTimeInterval(3600), minutes: 10080)], observedAt: Date(), plan: nil)
         store.refresh(.codex)
         while !store.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(store.snapshots[.codex])
-        XCTAssertNil(store.featured(.codex))
+        XCTAssertEqual(store.lastKnownWindow(.codex)?.used, 45)
+        XCTAssertTrue(store.isStale(.codex))
+        XCTAssertTrue(store.staleMessage(.codex)?.contains("Showing last known usage") == true)
         XCTAssertEqual(store.failures[.codex], .unavailable)
+    }
+
+    @MainActor
+    func testExpiredSelectedWindowIsRetainedWithoutSwitchingToWeekly() {
+        let suite = "AIUsageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UsageStore(defaults: defaults)
+        store.preferences.choices[.claude] = .short
+        store.now = now
+        XCTAssertNil(store.lastKnownWindow(.claude))
+        XCTAssertNil(store.staleMessage(.claude))
+        store.snapshots[.claude] = UsageSnapshot(windows: [
+            UsageWindow(id: "short", title: "5-hour", used: 80, resetsAt: now, minutes: 300),
+            UsageWindow(id: "weekly", title: "Weekly", used: 2, resetsAt: now.addingTimeInterval(86400), minutes: 10080)
+        ], observedAt: now, plan: nil)
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 80)
+        XCTAssertTrue(store.isStale(.claude))
+        store.preferences.choices[.claude] = .weekly
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 2)
+        XCTAssertFalse(store.isStale(.claude))
+        store.now = now.addingTimeInterval(600)
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 2)
+        XCTAssertTrue(store.isStale(.claude))
+    }
+
+    @MainActor
+    func testThrottleRetainsReadingAndManualRefreshHonorsCooldown() async throws {
+        var attempts = 0
+        let store = UsageStore(fetcher: { _ in attempts += 1; throw UsageFailure.throttled })
+        store.snapshots[.claude] = UsageSnapshot(windows: [UsageWindow(id: "weekly", title: "Weekly", used: 2, resetsAt: Date().addingTimeInterval(86400), minutes: 10080)], observedAt: Date(), plan: nil)
+        store.refresh(.claude)
+        for _ in 0..<100 where !store.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertTrue(store.refreshing.isEmpty)
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 2)
+        XCTAssertTrue(store.isStale(.claude))
+        XCTAssertTrue(store.staleMessage(.claude)?.contains("Retrying in 15 min") == true)
+        store.refresh(.claude)
+        XCTAssertTrue(store.refreshing.isEmpty)
+        XCTAssertEqual(attempts, 1)
+        store.now = store.now.addingTimeInterval(120)
+        XCTAssertTrue(store.staleMessage(.claude)?.contains("Retrying in 13 min") == true)
+    }
+
+    @MainActor
+    func testSuccessfulRefreshReplacesStaleReadingAndClearsMessage() async throws {
+        let fresh = UsageSnapshot(windows: [UsageWindow(id: "weekly", title: "Weekly", used: 12, resetsAt: Date().addingTimeInterval(86400), minutes: 10080)], observedAt: Date(), plan: nil)
+        let store = UsageStore(fetcher: { _ in fresh })
+        store.snapshots[.claude] = UsageSnapshot(windows: [UsageWindow(id: "weekly", title: "Weekly", used: 2, resetsAt: Date().addingTimeInterval(86400), minutes: 10080)], observedAt: Date().addingTimeInterval(-601), plan: nil)
+        store.failures[.claude] = .unavailable
+        XCTAssertTrue(store.isStale(.claude))
+        store.refresh(.claude)
+        for _ in 0..<100 where !store.refreshing.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertTrue(store.refreshing.isEmpty)
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 12)
+        XCTAssertFalse(store.isStale(.claude))
+        XCTAssertNil(store.staleMessage(.claude))
     }
 }

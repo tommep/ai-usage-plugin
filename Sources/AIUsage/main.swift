@@ -47,12 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func updateLabel() {
         func percent(_ provider: Provider) -> String {
-            store.featured(provider).map { "\(store.preferences.display.percentage($0.used))%" } ?? "—"
+            store.lastKnownWindow(provider).map { "\(store.preferences.display.percentage($0.used))%" } ?? "—"
         }
-        item.button?.attributedTitle = MenuBarLabel.make(style: store.preferences.providerLabels, percentage: percent)
+        item.button?.attributedTitle = MenuBarLabel.make(style: store.preferences.providerLabels, stale: store.isStale, percentage: percent)
         let mode = store.preferences.display.title.lowercased()
-        item.button?.toolTip = Provider.allCases.map { "\($0.rawValue): \(percent($0)) \(mode) · \(store.featured($0)?.title ?? store.preferences.choice($0).title)" }.joined(separator: "\n")
-        item.button?.setAccessibilityLabel("AI Usage: Codex \(percent(.codex)) \(mode), Claude \(percent(.claude)) \(mode)")
+        let descriptions = Provider.allCases.map { provider in
+            let value = "\(provider.rawValue): \(percent(provider)) \(mode) · \(store.lastKnownWindow(provider)?.title ?? store.preferences.choice(provider).title)"
+            return store.staleMessage(provider).map { "\(value) · Stale. \($0)" } ?? value
+        }
+        item.button?.toolTip = descriptions.joined(separator: "\n")
+        item.button?.setAccessibilityLabel("AI Usage: " + descriptions.joined(separator: ". "))
     }
 
     func applicationWillTerminate(_ notification: Notification) {

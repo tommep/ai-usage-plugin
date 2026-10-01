@@ -134,8 +134,34 @@ final class ImprovementTests: XCTestCase {
         let now = Date()
         let windows = [UsageWindow(id: "short", title: "5-hour", used: 10, resetsAt: now.addingTimeInterval(300), minutes: 300), UsageWindow(id: "week", title: "Weekly", used: 60, resetsAt: now.addingTimeInterval(600), minutes: 10080)]
         store.snapshots = [.codex: UsageSnapshot(windows: windows, observedAt: now, plan: nil), .claude: UsageSnapshot(windows: windows, observedAt: now, plan: nil)]
-        XCTAssertEqual(store.featured(.codex)?.used, 60)
-        XCTAssertEqual(store.featured(.claude)?.used, 10)
+        XCTAssertEqual(store.lastKnownWindow(.codex)?.used, 60)
+        XCTAssertEqual(store.lastKnownWindow(.claude)?.used, 10)
+    }
+
+    @MainActor
+    func testStaleMenuPercentageIsOrangeInEveryLabelAndDisplayMode() {
+        let suite = "AIUsageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UsageStore(defaults: defaults)
+        store.now = base
+        store.snapshots = [.codex: snapshot(45, second: 0), .claude: snapshot(2, second: 0)]
+        store.failures[.claude] = .throttled
+        for mode in [DisplayMode.used, .remaining] {
+            store.preferences.display = mode
+            for style in ProviderLabelStyle.allCases {
+                let label = MenuBarLabel.make(style: style, stale: store.isStale) { provider in
+                    store.lastKnownWindow(provider).map { "\(mode.percentage($0.used))%" } ?? "—"
+                }
+                let claude = (label.string as NSString).range(of: mode == .remaining ? "98%" : "2%")
+                let codex = (label.string as NSString).range(of: mode == .remaining ? "55%" : "45%")
+                XCTAssertNotEqual(claude.location, NSNotFound)
+                XCTAssertNotEqual(codex.location, NSNotFound)
+                guard claude.location != NSNotFound, codex.location != NSNotFound else { continue }
+                XCTAssertEqual(label.attribute(.foregroundColor, at: claude.location, effectiveRange: nil) as? NSColor, .systemOrange)
+                XCTAssertEqual(label.attribute(.foregroundColor, at: codex.location, effectiveRange: nil) as? NSColor, .labelColor)
+            }
+        }
     }
 
     func testSignInCompletionUsesMarkerOrChangedCredentialFile() throws {

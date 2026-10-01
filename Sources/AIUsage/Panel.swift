@@ -69,8 +69,8 @@ private struct ProviderRow: View {
     @ObservedObject var store: UsageStore
     var tint: Color { provider == .codex ? Palette.codex : Palette.claude }
     var snapshot: UsageSnapshot? { store.snapshots[provider] }
-    var featured: UsageWindow? { snapshot?.featured(weekly: store.preferences.choice(provider) == .weekly, at: store.now) }
-    var fresh: Bool { snapshot?.isFresh(at: store.now) == true && store.failures[provider] == nil }
+    var featured: UsageWindow? { store.lastKnownWindow(provider) }
+    var fresh: Bool { featured != nil && !store.isStale(provider) }
     var signingIn: Bool { store.reconnecting.contains(provider) }
     var busy: Bool { store.refreshing.contains(provider) }
     var shortWindowTitle: String {
@@ -117,7 +117,9 @@ private struct ProviderRow: View {
                             .font(.system(size: 10)).monospacedDigit().foregroundStyle(Palette.muted)
                     }.help("Reset: \(window.resetsAt.formatted(date: .complete, time: .shortened))")
                 }
-                if let failure = store.failures[provider] { Text(failure.localizedDescription).font(.system(size: 10)).foregroundStyle(Palette.muted) }
+                if let message = store.staleMessage(provider) {
+                    Text(message).font(.system(size: 10)).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text(signingIn ? "Finish signing in in your browser." : busy ? "Checking your usage…" : store.failures[provider]?.localizedDescription ?? "Waiting for current usage")
                     .font(.system(size: 12)).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)

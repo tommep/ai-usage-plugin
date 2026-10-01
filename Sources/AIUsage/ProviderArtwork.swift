@@ -33,7 +33,7 @@ enum ProviderArtwork {
 }
 
 enum MenuBarLabel {
-    static func make(style: ProviderLabelStyle, percentage: (Provider) -> String) -> NSAttributedString {
+    static func make(style: ProviderLabelStyle, stale: (Provider) -> Bool = { _ in false }, percentage: (Provider) -> String) -> NSAttributedString {
         let label = NSMutableAttributedString()
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
@@ -47,7 +47,9 @@ enum MenuBarLabel {
                 label.append(NSAttributedString(string: " ", attributes: attributes))
             }
             let abbreviation = provider == .codex ? "CX" : "CL"
-            label.append(NSAttributedString(string: (style.showsLetters ? "\(abbreviation) " : "") + percentage(provider), attributes: attributes))
+            var providerAttributes = attributes
+            if stale(provider) { providerAttributes[.foregroundColor] = NSColor.systemOrange }
+            label.append(NSAttributedString(string: (style.showsLetters ? "\(abbreviation) " : "") + percentage(provider), attributes: providerAttributes))
         }
         return label
     }

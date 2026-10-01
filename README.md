@@ -76,8 +76,14 @@ These are subscription allowances; pay-as-you-go API billing is not supported.
   to logs. Claude's token is sent only to Anthropic's usage endpoint.
 - AI Usage has no analytics service. Provider CLIs retain their own behavior and
   policies.
-- Refreshes normally run every three minutes, with backoff after throttling and
-  refresh on wake. Evidence older than ten minutes is marked stale.
+- Refreshes run every five minutes, with a 15-minute cooldown after throttling
+  and refresh on wake. Evidence older than ten minutes is marked stale.
+- Last known percentages stay in the menu bar in orange when a refresh fails,
+  evidence gets old, or the selected window expires. The panel and menu bar
+  tooltip explain the stale reading; throttling also shows a retry countdown.
+  Fresh data restores the normal color. Revoked login clears the old account's
+  reading, and unknown usage is shown as a dash. Usage snapshots are kept in
+  memory for the current app session.
 - Reset countdowns use provider-reported dates. The app waits for fresh evidence
   before showing renewed capacity; it never invents a reset or missing window.
 - Alerts start from a quiet baseline and are sent once per threshold per window.

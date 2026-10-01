@@ -49,9 +49,7 @@ final class UsageStore: ObservableObject {
                 guard !Task.isCancelled, let self else { return }
                 self.now = Date()
                 for provider in Provider.allCases {
-                    let expired = self.snapshots[provider]?.windows.contains { !$0.active(at: self.now) } == true
-                    let interval: Double = self.failures[provider] == .throttled ? 900 : 180
-                    let wait = expired && self.failures[provider] != .throttled ? 60 : interval
+                    let wait: Double = self.failures[provider] == .throttled ? 900 : 300
                     if self.now.timeIntervalSince(self.lastAttempt[provider] ?? .distantPast) >= wait { self.refresh(provider) }
                 }
                 self.onChange?()
@@ -95,9 +93,31 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    func featured(_ provider: Provider) -> UsageWindow? {
-        guard failures[provider] == nil, let snapshot = snapshots[provider], snapshot.isFresh(at: now) else { return nil }
-        return snapshot.featured(weekly: preferences.choice(provider) == .weekly, at: now)
+    // Keep the selected window's last reading, even after its reset passes.
+    // It must remain stale until the provider supplies replacement evidence.
+    func lastKnownWindow(_ provider: Provider) -> UsageWindow? {
+        guard let windows = snapshots[provider]?.windows else { return nil }
+        return preferences.choice(provider) == .weekly
+            ? windows.max { $0.minutes < $1.minutes }
+            : windows.min { $0.minutes < $1.minutes }
+    }
+
+    func isStale(_ provider: Provider) -> Bool {
+        guard let snapshot = snapshots[provider], let window = lastKnownWindow(provider) else { return false }
+        return failures[provider] != nil || !snapshot.isFresh(at: now) || !window.active(at: now)
+    }
+
+    func staleMessage(_ provider: Provider) -> String? {
+        guard isStale(provider) else { return nil }
+        if failures[provider] == .throttled {
+            let seconds = max(0, 900 - now.timeIntervalSince(lastAttempt[provider] ?? now))
+            let retry = seconds > 0 ? "Retrying in \(Int(ceil(seconds / 60))) min." : "Retrying shortly."
+            return "Showing last known usage. Provider is limiting refreshes. \(retry)"
+        }
+        if let failure = failures[provider] {
+            return "Showing last known usage. \(failure.localizedDescription)"
+        }
+        return "Showing last known usage. Waiting for updated usage data."
     }
 
     func signIn(_ provider: Provider) {
