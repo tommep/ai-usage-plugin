@@ -1,0 +1,16 @@
+.build/
+build/
+.DS_Store
+
+# Personal development record and unused icon draft stay local.
+PROJECT.md
+Assets/AIUsage-icon-draft.png
+
+# Local credentials, signing material, and editor state.
+.env
+.env.*
+*.p12
+*.p8
+*.key
+*.mobileprovision
+.swiftpm/
