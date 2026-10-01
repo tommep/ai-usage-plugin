@@ -17,6 +17,7 @@ and optionally receive alerts as your allowance runs low.
 ## Features
 
 - Separate Codex and Claude percentages in the menu bar.
+- Official provider icons in the dropdown, with letters, icons, or both in the menu bar.
 - Compact dropdown with reported usage windows and reset countdowns.
 - Independent short-window or weekly selections for each provider.
 - Used / remaining display preference.
@@ -48,6 +49,8 @@ zsh scripts/build-app.sh
 Copy `build/AI Usage.app` into **Applications**, then open it. Click the
 `CX … · CL …` item in the menu bar to see your allowances. The app runs in the
 menu bar without a Dock icon. Settings are available through the gear button.
+Under **Menu bar → Labels**, choose **Letters**, **Icons**, or **Both**. Percentages
+stay visible in every mode, and your choice is saved automatically.
 
 The build script signs locally with an ad hoc signature. This is intended for
 building on your own Mac, not distributing downloaded binaries to other users.
@@ -98,4 +101,7 @@ For credential or security concerns, use the private reporting process in
 ## License
 
 [MIT](LICENSE). The app icon was AI-generated and is included with the project.
+Bundled provider artwork comes from the official Codex and Claude desktop apps;
+provider names, icons, and trademarks belong to their respective owners and are
+not covered by this project's MIT license.
 AI Usage is an independent utility, not an official OpenAI or Anthropic product.

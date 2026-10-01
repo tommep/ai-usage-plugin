@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         func percent(_ provider: Provider) -> String {
             store.featured(provider).map { "\(store.preferences.display.percentage($0.used))%" } ?? "—"
         }
-        item.button?.title = "CX \(percent(.codex))  ·  CL \(percent(.claude))"
+        item.button?.attributedTitle = MenuBarLabel.make(style: store.preferences.providerLabels, percentage: percent)
         let mode = store.preferences.display.title.lowercased()
         item.button?.toolTip = Provider.allCases.map { "\($0.rawValue): \(percent($0)) \(mode) · \(store.featured($0)?.title ?? store.preferences.choice($0).title)" }.joined(separator: "\n")
         item.button?.setAccessibilityLabel("AI Usage: Codex \(percent(.codex)) \(mode), Claude \(percent(.claude)) \(mode)")

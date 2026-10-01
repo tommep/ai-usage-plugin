@@ -4,6 +4,7 @@ cd "${0:A:h:h}"
 swift build -c release
 mkdir -p "build/AI Usage.app/Contents/MacOS" "build/AI Usage.app/Contents/Resources"
 cp .build/release/AIUsage "build/AI Usage.app/Contents/MacOS/AIUsage"
+ditto .build/release/AIUsage_AIUsage.bundle "build/AI Usage.app/Contents/Resources/AIUsage_AIUsage.bundle"
 iconset="build/AppIcon.iconset"
 mkdir -p "$iconset"
 for points in 16 32 128 256 512; do
@@ -20,8 +21,8 @@ cat > "build/AI Usage.app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>com.tommy.aiusage</string>
 <key>CFBundleName</key><string>AI Usage</string>
 <key>CFBundleDisplayName</key><string>AI Usage</string>
-<key>CFBundleVersion</key><string>3</string>
-<key>CFBundleShortVersionString</key><string>0.2.1</string>
+<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>0.2.2</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>

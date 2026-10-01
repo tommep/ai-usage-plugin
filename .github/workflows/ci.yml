@@ -37,3 +37,5 @@ jobs:
           plutil -lint "build/AI Usage.app/Contents/Info.plist"
           codesign --verify --deep --strict "build/AI Usage.app"
           test -s "build/AI Usage.app/Contents/Resources/AppIcon.icns"
+          test -s "build/AI Usage.app/Contents/Resources/AIUsage_AIUsage.bundle/Codex.png"
+          test -s "build/AI Usage.app/Contents/Resources/AIUsage_AIUsage.bundle/Claude.png"

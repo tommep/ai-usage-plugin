@@ -55,6 +55,7 @@ release are separate maintainer actions; pull requests cannot publish a release.
 - `SignIn.swift`: official CLI login launcher and completion observation.
 - `Preferences.swift` / `SystemSettings.swift`: local preferences and native settings.
 - `Panel.swift` / `SettingsView.swift`: compact SwiftUI interface.
+- `ProviderArtwork.swift` / `Resources/`: bundled provider icons and menu bar labels.
 - `main.swift` / `PopoverLayout.swift`: AppKit menu item and bounded dropdown.
 
 Please use [private security reporting](SECURITY.md) for sensitive findings.

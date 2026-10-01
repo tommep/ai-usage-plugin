@@ -57,7 +57,7 @@ struct UsagePanel: View {
                     Divider()
                     Button("Quit AI Usage", role: .destructive) { NSApp.terminate(nil) }.keyboardShortcut("q")
                 } label: { Image(systemName: "ellipsis").frame(width: 22, height: 20) }
-                .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("More options")
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("More options")
             }.foregroundStyle(Palette.muted)
         }.padding(20).frame(width: size.width, height: size.height)
             .background(Palette.background).foregroundStyle(.white).preferredColorScheme(.dark)
@@ -73,20 +73,27 @@ private struct ProviderRow: View {
     var fresh: Bool { snapshot?.isFresh(at: store.now) == true && store.failures[provider] == nil }
     var signingIn: Bool { store.reconnecting.contains(provider) }
     var busy: Bool { store.refreshing.contains(provider) }
+    var shortWindowTitle: String {
+        snapshot?.windows.filter { $0.minutes < 10080 }.min { $0.minutes < $1.minutes }?.title ?? WindowChoice.short.title
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: provider == .codex ? "terminal" : "sparkle")
-                    .font(.system(size: 14, weight: .medium)).foregroundStyle(tint)
-                    .frame(width: 26, height: 26).background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                Image(nsImage: ProviderArtwork.image(provider))
+                    .resizable().scaledToFit().frame(width: 26, height: 26)
+                    .accessibilityHidden(true)
                 Text(provider.rawValue).font(.system(size: 14, weight: .semibold))
                 Spacer()
                 Menu {
-                    Picker("\(provider.rawValue) menu bar window", selection: Binding(get: { store.preferences.choice(provider) }, set: { store.preferences.choices[provider] = $0 })) {
-                        ForEach(WindowChoice.allCases) { choice in Text(choice.title).tag(choice) }
-                    }
-                } label: { Text(featured?.title ?? store.preferences.choice(provider).title).font(.system(size: 10, weight: .medium)) }
+                    Picker("", selection: Binding(get: { store.preferences.choice(provider) }, set: { store.preferences.choices[provider] = $0 })) {
+                        ForEach(WindowChoice.allCases) { choice in
+                            Text(choice == .short ? shortWindowTitle : choice.title).tag(choice)
+                        }
+                    }.pickerStyle(.inline).labelsHidden()
+                } label: {
+                    Text(featured?.title ?? store.preferences.choice(provider).title).font(.system(size: 10, weight: .medium))
+                }
                 .menuStyle(.borderlessButton).fixedSize().foregroundStyle(Palette.muted)
                 .accessibilityLabel("\(provider.rawValue) menu bar window")
             }

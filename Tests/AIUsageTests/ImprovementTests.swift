@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import AIUsage
 
 final class ImprovementTests: XCTestCase {
@@ -76,6 +77,50 @@ final class ImprovementTests: XCTestCase {
         XCTAssertEqual(restarted.display, .remaining)
         XCTAssertEqual(DisplayMode.remaining.percentage(100), 0)
         XCTAssertEqual(DisplayMode.remaining.percentage(0), 100)
+    }
+
+    @MainActor
+    func testProviderLabelPreferenceDefaultsSafelyAndUpdatesImmediately() {
+        let suite = "AIUsageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("unsupported", forKey: "providerLabels")
+        let preferences = Preferences(defaults: defaults)
+        XCTAssertEqual(preferences.providerLabels, .letters)
+        var updates = 0
+        preferences.onChange = { updates += 1 }
+        preferences.providerLabels = .both
+        XCTAssertEqual(updates, 1)
+        XCTAssertEqual(Preferences(defaults: defaults).providerLabels, .both)
+        preferences.providerLabels = .icons
+        XCTAssertEqual(Preferences(defaults: defaults).providerLabels, .icons)
+    }
+
+    func testMenuBarModesKeepPercentagesAndDecodeBothProviderIcons() {
+        for provider in Provider.allCases {
+            guard let data = ProviderArtwork.image(provider).tiffRepresentation,
+                  let pixels = NSBitmapImageRep(data: data) else {
+                XCTFail("Provider badge cannot render")
+                continue
+            }
+            XCTAssertLessThan(pixels.colorAt(x: 0, y: 0)!.alphaComponent, 0.01)
+            XCTAssertGreaterThan(pixels.colorAt(x: pixels.pixelsWide / 2, y: pixels.pixelsHigh / 2)!.alphaComponent, 0.99)
+        }
+        for style in ProviderLabelStyle.allCases {
+            let label = MenuBarLabel.make(style: style) { $0 == .codex ? "45%" : "—" }
+            XCTAssertTrue(label.string.contains("45%"))
+            XCTAssertTrue(label.string.contains("—"))
+            XCTAssertEqual(label.string.contains("CX"), style != .icons)
+            XCTAssertEqual(label.string.contains("CL"), style != .icons)
+            var attachments = 0
+            label.enumerateAttribute(.attachment, in: NSRange(location: 0, length: label.length)) { value, _, _ in
+                guard let attachment = value as? NSTextAttachment else { return }
+                attachments += 1
+                XCTAssertEqual(attachment.bounds.size, CGSize(width: 16, height: 16))
+                XCTAssertTrue(attachment.image?.isValid == true)
+            }
+            XCTAssertEqual(attachments, style == .letters ? 0 : 2)
+        }
     }
 
     @MainActor
