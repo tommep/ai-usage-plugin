@@ -10,6 +10,10 @@ AI Usage shows each provider's real usage percentages and reset times. Choose
 which window to display for each provider, switch between used and remaining,
 and optionally receive alerts as your allowance runs low.
 
+<p align="center">
+  <img src="Assets/ai-usage-image.jpg" width="418" alt="AI Usage dropdown showing separate Codex and Claude remaining percentages and reset countdowns">
+</p>
+
 ## Features
 
 - Separate Codex and Claude percentages in the menu bar.
