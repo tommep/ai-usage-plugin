@@ -86,6 +86,8 @@ These are subscription allowances; pay-as-you-go API billing is not supported.
   are saved locally across restarts and shown as stale until verified again.
 - Reset countdowns use provider-reported dates. The app waits for fresh evidence
   before showing renewed capacity; it never invents a reset or missing window.
+  Claude percentages remain usable when a reset time is absent; that window
+  shows “reset time not provided” and does not generate quota-window alerts.
 - Alerts start from a quiet baseline and are sent once per threshold per window.
   A jump over both thresholds produces one 95% alert. Renewal alerts require
   previously observed 100% exhaustion and a newly reported window with capacity.

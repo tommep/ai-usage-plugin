@@ -41,6 +41,40 @@ final class UsageTests: XCTestCase {
         }
         XCTAssertThrowsError(try UsageParser.codex(Data(#"{"result":{"rateLimits":null}}"#.utf8), at: now))
     }
+
+    @MainActor
+    func testClaudeNullResetKeepsBothReportedPercentagesAndCachesThem() throws {
+        let body = Data(#"{"five_hour":{"utilization":0.0,"resets_at":null},"seven_day":{"utilization":2.0,"resets_at":"2026-10-06T12:00:00.215319+00:00"}}"#.utf8)
+        let snapshot = try UsageParser.claude(body, at: now)
+        XCTAssertEqual(snapshot.windows.count, 2)
+        let short = try XCTUnwrap(snapshot.windows.first { $0.id == "five_hour" })
+        XCTAssertEqual(short.used, 0)
+        XCTAssertNil(short.resetsAt)
+        XCTAssertEqual(short.detail(at: now), "0% used · reset time not provided")
+        XCTAssertEqual(snapshot.featured(weekly: false, at: now)?.used, 0)
+        XCTAssertEqual(snapshot.featured(weekly: true, at: now)?.used, 2)
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(snapshot))
+        XCTAssertEqual(decoded.windows, snapshot.windows)
+        let store = UsageStore()
+        store.now = now
+        store.snapshots[.claude] = snapshot
+        XCTAssertFalse(store.isStale(.claude))
+        XCTAssertNil(store.staleMessage(.claude))
+    }
+
+    func testMissingResetDoesNotInventUsageOrTriggerRenewalAlerts() throws {
+        XCTAssertThrowsError(try UsageParser.claude(Data(#"{"five_hour":{"utilization":null,"resets_at":null}}"#.utf8), at: now))
+        let body = Data(#"{"five_hour":{"utilization":25,"resets_at":null}}"#.utf8)
+        let snapshot = try UsageParser.claude(body, at: now)
+        XCTAssertEqual(snapshot.windows.first?.used, 25)
+        XCTAssertNil(snapshot.windows.first?.resetsAt)
+        var alerts = UsageAlertTracker()
+        let exhausted = UsageSnapshot(windows: [UsageWindow(id: "five_hour", title: "5-hour", used: 100, resetsAt: now.addingTimeInterval(1), minutes: 300)], observedAt: now.addingTimeInterval(-1), plan: nil)
+        XCTAssertTrue(alerts.observe(exhausted, provider: .claude, now: now).isEmpty)
+        XCTAssertTrue(alerts.observe(snapshot, provider: .claude, now: now).isEmpty)
+        let unknownExhaustion = UsageSnapshot(windows: [UsageWindow(id: "five_hour", title: "5-hour", used: 100, resetsAt: nil, minutes: 300)], observedAt: now.addingTimeInterval(1), plan: nil)
+        XCTAssertTrue(alerts.observe(unknownExhaustion, provider: .claude, now: now.addingTimeInterval(1)).isEmpty)
+    }
     func testExpiryAndFreshnessDoNotInventResetUsage() {
         let window = UsageWindow(id: "weekly", title: "Weekly", used: 90, resetsAt: now.addingTimeInterval(120), minutes: 10080)
         let snapshot = UsageSnapshot(windows: [window], observedAt: now, plan: nil)

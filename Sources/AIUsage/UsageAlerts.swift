@@ -8,7 +8,8 @@ struct UsageAlert: Equatable {
     var identifier: String {
         let suffix: String
         switch kind { case .threshold(let value): suffix = "\(value)"; case .reset: suffix = "reset" }
-        return "\(provider.rawValue).\(window.id).\(Int(window.resetsAt.timeIntervalSince1970)).\(suffix)"
+        let reset = window.resetsAt.map { String(Int($0.timeIntervalSince1970)) } ?? "unknown"
+        return "\(provider.rawValue).\(window.id).\(reset).\(suffix)"
     }
 }
 
@@ -37,9 +38,11 @@ struct UsageAlertTracker {
         guard snapshot.isFresh(at: now), snapshot.observedAt <= now else { return [] }
         var events: [UsageAlert] = []
         for window in snapshot.windows where window.active(at: now) {
+            // Without a reset timestamp we cannot identify a quota window or renewal.
+            guard let reset = window.resetsAt else { continue }
             let previous = states[provider.rawValue]?[window.id]
             if let previous, snapshot.observedAt <= previous.observed { continue }
-            let sameWindow = previous?.reset == window.resetsAt
+            let sameWindow = previous?.reset == reset
             var announced = sameWindow ? previous!.announced : Set<Int>()
             // Opening/enabling alerts establishes a quiet baseline rather than a flood.
             if previous == nil { announced = Set([80, 95].filter { window.used >= Double($0) }) }
@@ -50,12 +53,12 @@ struct UsageAlertTracker {
                     announced.formUnion(crossed)
                 }
             } else {
-                if previous!.used >= 100, window.used < 100, window.resetsAt > previous!.reset {
+                if previous!.used >= 100, window.used < 100, reset > previous!.reset {
                     events.append(UsageAlert(provider: provider, window: window, kind: .reset))
                 }
                 announced = Set([80, 95].filter { window.used >= Double($0) })
             }
-            states[provider.rawValue, default: [:]][window.id] = WindowState(reset: window.resetsAt, observed: snapshot.observedAt, used: window.used, announced: announced)
+            states[provider.rawValue, default: [:]][window.id] = WindowState(reset: reset, observed: snapshot.observedAt, used: window.used, announced: announced)
         }
         persist()
         return events

@@ -9,16 +9,24 @@ struct UsageWindow: Identifiable, Equatable, Codable {
     let id: String
     let title: String
     let used: Double
-    let resetsAt: Date
+    let resetsAt: Date?
     let minutes: Int
 
-    func active(at now: Date) -> Bool { resetsAt > now }
+    // A missing reset does not invalidate a percentage the provider just reported.
+    func active(at now: Date) -> Bool { resetsAt.map { $0 > now } ?? true }
     func countdown(at now: Date) -> String {
+        guard let resetsAt else { return "Reset time not provided" }
         let seconds = max(0, Int(resetsAt.timeIntervalSince(now)))
         if seconds == 0 { return "Refreshing reset…" }
         if seconds >= 86400 { return "\(seconds / 86400)d \((seconds % 86400) / 3600)h" }
         if seconds >= 3600 { return "\(seconds / 3600)h \((seconds % 3600) / 60)m" }
         return "\(max(1, seconds / 60))m"
+    }
+
+    func detail(at now: Date) -> String {
+        guard active(at: now) else { return "Waiting for reset data" }
+        let reset = resetsAt == nil ? "reset time not provided" : "resets in \(countdown(at: now))"
+        return "\(Int(used.rounded()))% used · \(reset)"
     }
 }
 
@@ -67,7 +75,12 @@ enum UsageParser {
         let reply = try JSONDecoder().decode(ClaudeReply.self, from: data)
         let windows = try [("five_hour", "5-hour", 300, reply.five_hour), ("seven_day", "Weekly", 10080, reply.seven_day)].compactMap { key, title, mins, window -> UsageWindow? in
             guard let window else { return nil }
-            guard let used = window.utilization, valid(used), let value = window.resets_at, let reset = parseDate(value) else { throw UsageFailure.invalidData }
+            guard let used = window.utilization, valid(used) else { throw UsageFailure.invalidData }
+            let reset: Date?
+            if let value = window.resets_at {
+                guard let parsed = parseDate(value) else { throw UsageFailure.invalidData }
+                reset = parsed
+            } else { reset = nil }
             return UsageWindow(id: key, title: title, used: used, resetsAt: reset, minutes: mins)
         }
         guard !windows.isEmpty else { throw UsageFailure.invalidData }

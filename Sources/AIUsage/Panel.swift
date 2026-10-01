@@ -113,9 +113,9 @@ private struct ProviderRow: View {
                     HStack {
                         Text(window.title).font(.system(size: 11, weight: .medium))
                         Spacer()
-                        Text(window.active(at: store.now) ? "\(Int(window.used.rounded()))% used · resets in \(window.countdown(at: store.now))" : "Waiting for reset data")
+                        Text(window.detail(at: store.now))
                             .font(.system(size: 10)).monospacedDigit().foregroundStyle(Palette.muted)
-                    }.help("Reset: \(window.resetsAt.formatted(date: .complete, time: .shortened))")
+                    }.help(window.resetsAt.map { "Reset: \($0.formatted(date: .complete, time: .shortened))" } ?? "Claude has not provided a reset time for this window.")
                 }
                 if let message = store.staleMessage(provider) {
                     Text(message).font(.system(size: 10)).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)

@@ -98,7 +98,7 @@ if CommandLine.arguments.contains("--diagnose") {
         for provider in Provider.allCases {
             do {
                 let snapshot = try await ProviderClient.fetch(provider)
-                print("\(provider.rawValue): " + snapshot.windows.map { "\($0.title) \($0.used)% used, reset \($0.resetsAt.ISO8601Format())" }.joined(separator: "; "))
+                print("\(provider.rawValue): " + snapshot.windows.map { "\($0.title) \($0.used)% used, reset \($0.resetsAt?.ISO8601Format() ?? "not provided")" }.joined(separator: "; "))
             } catch { print("\(provider.rawValue): \(error.localizedDescription)") }
         }
         exit(0)
