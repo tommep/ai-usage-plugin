@@ -54,6 +54,8 @@ struct UsagePanel: View {
                 Menu {
                     Button("Open Codex usage") { NSWorkspace.shared.open(URL(string: "https://chatgpt.com/codex/settings/usage")!) }
                     Button("Open Claude usage") { NSWorkspace.shared.open(URL(string: "https://claude.ai/settings/usage")!) }
+                    Button("Reconnect Claude") { store.signIn(.claude) }
+                        .disabled(store.reconnecting.contains(.claude) || store.refreshing.contains(.claude))
                     Divider()
                     Button("Quit AI Usage", role: .destructive) { NSApp.terminate(nil) }.keyboardShortcut("q")
                 } label: { Image(systemName: "ellipsis").frame(width: 22, height: 20) }

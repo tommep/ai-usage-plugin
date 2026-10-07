@@ -62,11 +62,16 @@ architecture; Intel runtime behavior has not been tested.
 AI Usage reuses the providers' existing CLI sign-ins. A missing CLI opens its
 installation page. **Reconnect** opens the provider's official sign-in command
 in Terminal; finish that flow in your browser and the app refreshes automatically.
-The app does not handle your password or refresh expired Claude tokens itself.
+Before asking you to reconnect, the app lets Claude Code renew an expiring saved
+login in the background. This requires Claude Code 2.1.233 or later with
+`--safe-mode` support. No model prompt is sent. Claude owns credential renewal;
+the app does not handle your password or write tokens. A revoked or unrenewable
+login still requires sign-in. Manual **Reconnect Claude** is also available in
+the panel’s More options menu if background renewal keeps failing.
 
 Codex is read through its CLI app-server quota interface. Claude is read through
-its internal OAuth usage endpoint, using the existing CLI credential file or
-macOS Keychain item. Claude may ask macOS for access to its Keychain item.
+its internal OAuth usage endpoint, using the macOS Keychain login, with the existing CLI
+credential file as a fallback. Claude may ask macOS for access to its Keychain item.
 Provider changes can affect compatibility, especially Claude's internal endpoint.
 These are subscription allowances; pay-as-you-go API billing is not supported.
 

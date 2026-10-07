@@ -41,8 +41,18 @@ enum ProviderClient {
     }
 
     private static func claude() async throws -> UsageSnapshot {
+        let token = try await Task.detached(priority: .utility) { try ClaudeLogin.token() }.value
+        do { return try await claudeUsage(token) }
+        catch UsageFailure.signIn {
+            let renewed = try await Task.detached(priority: .utility) {
+                try ClaudeLogin.recover(rejectedToken: token)
+            }.value
+            return try await claudeUsage(renewed)
+        }
+    }
+
+    private static func claudeUsage(_ token: String) async throws -> UsageSnapshot {
         let started = Date()
-        let token = try await Task.detached(priority: .utility) { try claudeToken() }.value
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -67,25 +77,6 @@ enum ProviderClient {
             throw error.code == .timedOut ? UsageFailure.timeout : UsageFailure.unavailable
         }
     }
-
-    // Credentials stay in memory and are sent only to the provider's usage endpoint.
-    private static func claudeToken() throws -> String {
-        let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
-        if let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 1_000_000,
-           let data = try? Data(contentsOf: file), let token = validToken(data) { return token }
-        let child = try ChildProcess(URL(fileURLWithPath: "/usr/bin/security"), ["find-generic-password", "-s", "Claude Code-credentials", "-w"], timeout: 10)
-        defer { child.close() }
-        let data = try child.all()
-        guard let token = validToken(data) else { throw UsageFailure.signIn }
-        return token
-    }
-
-    private static func validToken(_ data: Data) -> String? {
-        guard let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = value["claudeAiOauth"] as? [String: Any], let token = oauth["accessToken"] as? String, !token.isEmpty else { return nil }
-        if let expires = oauth["expiresAt"] as? Double, expires / 1000 <= Date().timeIntervalSince1970 + 30 { return nil }
-        return token
-    }
 }
 
 private final class NoRedirects: NSObject, URLSessionTaskDelegate {
@@ -104,19 +95,20 @@ final class ChildProcess {
     private var bytesRead = 0
     private let lock = NSLock()
     private var timeoutFlag = false
+    var isRunning: Bool { process.isRunning }
     var timedOut: Bool { lock.lock(); defer { lock.unlock() }; return timeoutFlag }
 
-    init(_ executable: URL, _ arguments: [String], timeout: Double = 20) throws {
+    init(_ executable: URL, _ arguments: [String], timeout: Double = 20, environment: [String: String]? = nil, directory: URL? = nil) throws {
         process.executableURL = executable
         process.arguments = arguments
         process.standardInput = input
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
-        var env = ProcessInfo.processInfo.environment
+        var env = environment ?? ProcessInfo.processInfo.environment
         env["PATH"] = executable.deletingLastPathComponent().path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
         process.environment = env
         // Do not load workspace instructions or run any model turns.
-        process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+        process.currentDirectoryURL = directory ?? FileManager.default.homeDirectoryForCurrentUser
         try process.run()
         Self.registryLock.lock(); Self.running[id] = process; Self.registryLock.unlock()
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))

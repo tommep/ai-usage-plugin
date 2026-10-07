@@ -21,8 +21,8 @@ cat > "build/AI Usage.app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>com.tommy.aiusage</string>
 <key>CFBundleName</key><string>AI Usage</string>
 <key>CFBundleDisplayName</key><string>AI Usage</string>
-<key>CFBundleVersion</key><string>6</string>
-<key>CFBundleShortVersionString</key><string>0.2.4</string>
+<key>CFBundleVersion</key><string>7</string>
+<key>CFBundleShortVersionString</key><string>0.2.5</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
